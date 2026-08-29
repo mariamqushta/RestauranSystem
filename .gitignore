@@ -1,0 +1,13 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+appsettings.Development.json
+
+# User secrets
+secrets.json
+
+# Environment variables
+.env
