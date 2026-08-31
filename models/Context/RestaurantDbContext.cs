@@ -1,9 +1,10 @@
 ﻿
-using Microsoft.EntityFrameworkCore;
-using RestaurantReservationSystem.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+using restaurantAPI.models;
+using RestaurantReservationSystem.Models;
 namespace restaurantAPI.Models.Context
 {
     public class RestaurantDbContext : IdentityDbContext<ApplicationUser, IdentityRole, string>
@@ -24,6 +25,8 @@ namespace restaurantAPI.Models.Context
         public DbSet<Category> Categories { get; set; }
 
         public DbSet<Review> Reviews { get; set; }
+
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {

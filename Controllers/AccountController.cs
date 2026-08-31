@@ -2,9 +2,12 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using restaurantAPI.DTO.logDto;
+using restaurantAPI.models;
+using restaurantAPI.Models.Context;
 using RestaurantReservationSystem.Models;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 namespace restaurantAPI.Controllers
 {
@@ -15,15 +18,18 @@ namespace restaurantAPI.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IConfiguration _configuration;
+        private readonly RestaurantDbContext _context;
 
         public AccountController(
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            RestaurantDbContext context)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _configuration = configuration;
+            _context = context;
         }
         [HttpPost]
         public async Task<IActionResult> Login(LoginDto dto)
@@ -49,23 +55,56 @@ namespace restaurantAPI.Controllers
 
                 var sigcer =new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-                var Token = new JwtSecurityToken(
-                    claims: userdata,
-                    expires: DateTime.Now.AddDays(1),
-                    signingCredentials: sigcer
-                    );
+            var accessTokenExpiration = DateTime.UtcNow.AddMinutes(15);
 
-                var stringtaken = new JwtSecurityTokenHandler().WriteToken(Token);
-                //return Ok(stringtaken);
-                Response.Cookies.Append("jwt", stringtaken, new CookieOptions
-                {
-                    HttpOnly = true,
-                    Secure = true,
-                    SameSite = SameSiteMode.None,
-                    Expires = DateTimeOffset.UtcNow.AddHours(1)
-                });
+            var Token = new JwtSecurityToken(
+                claims: userdata,
+                expires: accessTokenExpiration,
+                signingCredentials: sigcer
+            );
 
-                return Ok(new
+            var stringtoken =
+                new JwtSecurityTokenHandler().WriteToken(Token);
+
+            // 6. Create Refresh Token
+            var refreshToken = Convert.ToBase64String(
+                RandomNumberGenerator.GetBytes(64)
+            );
+
+            // 7. Save Refresh Token in database
+            var refreshTokenEntity = new RefreshToken
+            {
+                Token = refreshToken,
+                ExpiresAt = DateTime.UtcNow.AddDays(7),
+                IsRevoked = false,
+                UserId = user.Id
+            };
+
+            _context.RefreshTokens.Add(refreshTokenEntity);
+
+            await _context.SaveChangesAsync();
+
+            // 8. Put Access Token in cookie
+            Response.Cookies.Append("jwt", stringtoken, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.None,
+                Path = "/",
+                Expires = new DateTimeOffset(accessTokenExpiration)
+            });
+
+            // 9. Put Refresh Token in cookie
+            Response.Cookies.Append("refreshToken", refreshToken, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.None,
+                Path = "/",
+                Expires = DateTimeOffset.UtcNow.AddDays(7)
+            });
+
+            return Ok(new
                 {
                     message = "Login successful"
                 });
