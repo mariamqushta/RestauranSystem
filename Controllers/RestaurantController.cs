@@ -5,6 +5,7 @@ using restaurantAPI.DTO;
 using restaurantAPI.Models.Context;
 using restaurantAPI.Repository;
 using RestaurantReservationSystem.Models;
+using System.Security.Claims;
 
 namespace restaurantAPI.Controllers
 {
@@ -44,7 +45,7 @@ namespace restaurantAPI.Controllers
 
         [HttpGet]
         [Route("{id}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize]
         public IActionResult Getbyid(int id)
         {
             //var restaurants = _context.Restaurants.Where(r => r.Id==id)
@@ -66,6 +67,7 @@ namespace restaurantAPI.Controllers
 
         [HttpPost]
         [Route("")]
+        [Authorize(Roles = "RestaurantOwner")]
         public IActionResult Create(RestaurantDto restaurant )
 
         {
@@ -77,7 +79,12 @@ namespace restaurantAPI.Controllers
             //};
             if(!ModelState.IsValid) return BadRequest(ModelState);
             var newRestaurant = _mapper.Map<Restaurant>(restaurant);
-
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null)
+            {
+                return Unauthorized();
+            }
+            newRestaurant.OwnerId = userId;
             _Repo.add(newRestaurant);
             _Repo.Save();
 
@@ -87,6 +94,7 @@ namespace restaurantAPI.Controllers
         }
         [HttpPut]
         [Route("{id}")]
+        [Authorize(Roles = "RestaurantOwner")]
         public IActionResult update(int id ,RestaurantDto restaurant)
 
         {
@@ -97,14 +105,16 @@ namespace restaurantAPI.Controllers
             ////newRestaurant.PhoneNumber=restaurant.PhoneNumber;
             //_mapper.Map(restaurant, newRestaurant);
             var existingRestaurant = _Repo.GetById(id);
-
             if (existingRestaurant == null)
             {
                 return NotFound();
             }
-
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (existingRestaurant.OwnerId != userId)
+            {
+                return Forbid();
+            }
             _mapper.Map(restaurant, existingRestaurant);
-
             _Repo.Edit(existingRestaurant);
             _Repo.Save();
 
@@ -115,15 +125,24 @@ namespace restaurantAPI.Controllers
 
         [HttpDelete]
         [Route("{id}")]
+        [Authorize(Roles = "RestaurantOwner")]
         public IActionResult Delete(int id)
 
         {
-                        var existingRestaurant = _Repo.GetById(id);
+            var existingRestaurant = _Repo.GetById(id);
 
             if (existingRestaurant == null)
             {
                 return NotFound();
             }
+
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (existingRestaurant.OwnerId != userId)
+            {
+                return Forbid();
+            }
+
             _Repo.Delete(id);
             _Repo.Save();
 

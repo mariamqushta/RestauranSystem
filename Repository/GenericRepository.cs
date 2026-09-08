@@ -1,5 +1,5 @@
 ﻿using restaurantAPI.Models.Context;
-
+using System.Linq.Expressions;
 namespace restaurantAPI.Repository
 {
     public class GenericRepository<T>where T:class
@@ -18,7 +18,13 @@ namespace restaurantAPI.Repository
         public T GetById(int id) { 
             return _context.Set< T >().Find(id);
         }
-
+        public List<T> GetByCondition(
+            Expression<Func<T, bool>> condition)
+                {
+                    return _context.Set<T>()
+                        .Where(condition)
+                        .ToList();
+        }
         public void add(T entity)
         {
              _context.Set<T>().Add(entity);
@@ -39,6 +45,11 @@ namespace restaurantAPI.Repository
         public void Save()
         {
             _context.SaveChanges();
+        }
+
+        public async Task SaveAsync()
+        {
+           await _context.SaveChangesAsync();
         }
     }
 }

@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using restaurantAPI.AutoMapper;
 using restaurantAPI.Middleware;
+using restaurantAPI.models;
 using restaurantAPI.Models.Context;
 using restaurantAPI.Repository;
 using restaurantAPI.UnitOfWork;
@@ -20,8 +21,14 @@ namespace restaurantAPI
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
-            builder.Services.AddScoped < GenericRepository<Restaurant>>();
+            builder.Services.AddScoped <GenericRepository<Restaurant>>();
             builder.Services.AddScoped<GenericRepository<RestaurantTable>>();
+            builder.Services.AddScoped<GenericRepository<RefreshToken>>();
+            builder.Services.AddScoped<GenericRepository<InventoryItem>>();
+            builder.Services.AddScoped<GenericRepository<MenuItem>>();
+            builder.Services.AddScoped<GenericRepository<Category>>();
+            builder.Services.AddScoped<GenericRepository<Review>>();
+            builder.Services.AddScoped<GenericRepository<Reservation>>();
             builder.Services.AddScoped<UnitWork>();
             // Add services to the container.
             builder.Services.AddDbContext<RestaurantDbContext>(options =>
@@ -113,7 +120,7 @@ namespace restaurantAPI
                 var roleManager =
                     scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
-                string[] roles = { "Admin", "User" };
+                string[] roles = { "Admin", "Customer", "RestaurantOwner" };
 
                 foreach (var role in roles)
                 {

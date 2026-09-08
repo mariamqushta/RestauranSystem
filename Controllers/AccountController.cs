@@ -1,9 +1,11 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using AutoMapper;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using restaurantAPI.DTO.logDto;
 using restaurantAPI.models;
 using restaurantAPI.Models.Context;
+using restaurantAPI.Repository;
 using RestaurantReservationSystem.Models;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -18,18 +20,24 @@ namespace restaurantAPI.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IConfiguration _configuration;
-        private readonly RestaurantDbContext _context;
+        private readonly GenericRepository<RefreshToken> _repo;
+        private readonly IMapper _mapper;
+        private readonly IPasswordHasher<ApplicationUser> _passwordHasher;
 
         public AccountController(
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
             IConfiguration configuration,
-            RestaurantDbContext context)
+            GenericRepository<RefreshToken> repo,
+            IMapper mapper,
+    IPasswordHasher<ApplicationUser> passwordHasher)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _configuration = configuration;
-            _context = context;
+            _repo = repo;
+            _mapper = mapper;
+            _passwordHasher = passwordHasher;
         }
         [HttpPost]
         public async Task<IActionResult> Login(LoginDto dto)
@@ -45,8 +53,10 @@ namespace restaurantAPI.Controllers
                 List<Claim> userdata = new List<Claim>();
                 userdata.Add(new Claim(ClaimTypes.Name,dto.UserName ));
                 userdata.Add(new Claim ( ClaimTypes.MobilePhone, "01111111111"));
+                userdata.Add(new Claim(ClaimTypes.NameIdentifier, user.Id));
+            
 
-                foreach (var role in roles) {
+            foreach (var role in roles) {
                     userdata.Add(new Claim(ClaimTypes.Role, role));
                 };
 
@@ -66,12 +76,12 @@ namespace restaurantAPI.Controllers
             var stringtoken =
                 new JwtSecurityTokenHandler().WriteToken(Token);
 
-            // 6. Create Refresh Token
+            
             var refreshToken = Convert.ToBase64String(
                 RandomNumberGenerator.GetBytes(64)
             );
 
-            // 7. Save Refresh Token in database
+           
             var refreshTokenEntity = new RefreshToken
             {
                 Token = refreshToken,
@@ -80,11 +90,11 @@ namespace restaurantAPI.Controllers
                 UserId = user.Id
             };
 
-            _context.RefreshTokens.Add(refreshTokenEntity);
+            _repo.add(refreshTokenEntity);
 
-            await _context.SaveChangesAsync();
+            await _repo.SaveAsync();
 
-            // 8. Put Access Token in cookie
+          
             Response.Cookies.Append("jwt", stringtoken, new CookieOptions
             {
                 HttpOnly = true,
@@ -94,7 +104,7 @@ namespace restaurantAPI.Controllers
                 Expires = new DateTimeOffset(accessTokenExpiration)
             });
 
-            // 9. Put Refresh Token in cookie
+            
             Response.Cookies.Append("refreshToken", refreshToken, new CookieOptions
             {
                 HttpOnly = true,
@@ -119,12 +129,18 @@ namespace restaurantAPI.Controllers
                 return BadRequest("Role does not exist.");
             }
 
-            var user = new ApplicationUser
-            {
-                UserName = dto.UserName
-            };
+            //var user = new ApplicationUser
+            //{
+            //    UserName = dto.UserName
+            //};
 
-            var result = await _userManager.CreateAsync(user, dto.Password);
+            //var result = await _userManager.CreateAsync(user, dto.Password);
+
+            var user = _mapper.Map<ApplicationUser>(dto);
+
+            user.PasswordHash = _passwordHasher.HashPassword(user, dto.Password);
+
+            var result = await _userManager.CreateAsync(user);
             if (!result.Succeeded)
             {
                 return BadRequest(result.Errors);

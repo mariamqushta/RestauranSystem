@@ -1,8 +1,10 @@
 ﻿using AutoMapper;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using restaurantAPI.DTO;
-using restaurantAPI.Repository;
+using restaurantAPI.UnitOfWork;
 using RestaurantReservationSystem.Models;
+using System.Security.Claims;
 
 namespace restaurantAPI.Controllers
 {
@@ -10,89 +12,210 @@ namespace restaurantAPI.Controllers
     [Route("[controller]")]
     public class RestaurantTableController : ControllerBase
     {
-        private readonly GenericRepository<RestaurantTable> _repo;
+        private readonly UnitWork _unitWork;
         private readonly IMapper _mapper;
 
         public RestaurantTableController(
-            GenericRepository<RestaurantTable> repo,
+            UnitWork unit,
             IMapper mapper)
         {
-            _repo = repo;
+            _unitWork = unit;
             _mapper = mapper;
         }
 
-
         [HttpGet]
-        public IActionResult Get()
+        [Route("Restaurant/{restaurantId}")]
+        [Authorize]
+        public IActionResult Get(int restaurantId)
         {
-            var tables = _repo.GetAll();
+            var userId =
+                User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-            var dto = _mapper.Map<List<GetRestaurantTableDto>>(tables);
+            if (userId == null)
+            {
+                return Unauthorized();
+            }
 
-            return Ok(dto);
+            if (User.IsInRole("RestaurantOwner"))
+            {
+                var tables =
+                    _unitWork.Tablerepo.GetByCondition(
+                        t => t.RestaurantId == restaurantId &&
+                             t.Restaurant.OwnerId == userId
+                    );
+
+                var dto =
+                    _mapper.Map<List<GetRestaurantTableDto>>(tables);
+
+                return Ok(dto);
+            }
+            else
+            {
+                var tables =
+                    _unitWork.Tablerepo.GetByCondition(
+                        t => t.RestaurantId == restaurantId &&
+                             t.IsAvailable == true
+                    );
+
+                var dto =
+                    _mapper.Map<List<GetRestaurantTableDto>>(tables);
+
+                return Ok(dto);
+            }
         }
 
-
-
-        [HttpGet("{id}")]
+        [HttpGet]
+        [Route("{id}")]
+        [Authorize(Roles = "RestaurantOwner")]
         public IActionResult GetById(int id)
         {
-            var table = _repo.GetById(id);
+            var userId =
+                User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (userId == null)
+            {
+                return Unauthorized();
+            }
+
+            var table =
+                _unitWork.Tablerepo.GetById(id);
 
             if (table == null)
             {
                 return NotFound();
             }
 
-            var dto = _mapper.Map<GetRestaurantTableDto>(table);
+            var restaurant =
+                _unitWork.Restaurantrepo.GetById(
+                    table.RestaurantId);
+
+            if (restaurant == null)
+            {
+                return NotFound("Restaurant not found.");
+            }
+
+            if (restaurant.OwnerId != userId)
+            {
+                return Forbid();
+            }
+
+            var dto =
+                _mapper.Map<GetRestaurantTableDto>(table);
 
             return Ok(dto);
         }
 
         [HttpPost]
+        [Route("")]
+        [Authorize(Roles = "RestaurantOwner")]
         public IActionResult Create(RestaurantTableDto tableDto)
         {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (userId == null)
+            {
+                return Unauthorized();
+            }
+
+            var restaurant = _unitWork.Restaurantrepo
+                .GetById(tableDto.RestaurantId);
+
+            if (restaurant == null)
+            {
+                return NotFound("Restaurant not found.");
+            }
+
+            if (restaurant.OwnerId != userId)
+            {
+                return Forbid();
+            }
+
             var table = _mapper.Map<RestaurantTable>(tableDto);
 
-            _repo.add(table);
-            _repo.Save();
+            _unitWork.Tablerepo.add(table);
+            _unitWork.Save();
 
             var dto = _mapper.Map<GetRestaurantTableDto>(table);
 
             return Ok(dto);
         }
-        [HttpPut("{id}")]
+
+        [HttpPut]
+        [Route("{id}")]
+        [Authorize(Roles = "RestaurantOwner")]
         public IActionResult Update(int id, RestaurantTableDto tableDto)
         {
-            var existingTable = _repo.GetById(id);
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (userId == null)
+            {
+                return Unauthorized();
+            }
+
+            var existingTable = _unitWork.Tablerepo.GetById(id);
 
             if (existingTable == null)
             {
                 return NotFound();
             }
 
+            var restaurant = _unitWork.Restaurantrepo
+                .GetById(existingTable.RestaurantId);
+
+            if (restaurant == null)
+            {
+                return NotFound("Restaurant not found.");
+            }
+
+            if (restaurant.OwnerId != userId)
+            {
+                return Forbid();
+            }
+
             _mapper.Map(tableDto, existingTable);
 
-            _repo.Edit(existingTable);
-            _repo.Save();
+            _unitWork.Tablerepo.Edit(existingTable);
+            _unitWork.Save();
 
             var dto = _mapper.Map<GetRestaurantTableDto>(existingTable);
 
             return Ok(dto);
         }
 
-        [HttpDelete("{id}")]
+        [HttpDelete]
+        [Route("{id}")]
+        [Authorize(Roles = "RestaurantOwner")]
         public IActionResult Delete(int id)
         {
-            var table = _repo.GetById(id);
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (userId == null)
+            {
+                return Unauthorized();
+            }
+
+            var table = _unitWork.Tablerepo.GetById(id);
 
             if (table == null)
             {
                 return NotFound();
             }
 
-            _repo.Delete(id);
-            _repo.Save();
+            var restaurant = _unitWork.Restaurantrepo
+                .GetById(table.RestaurantId);
+
+            if (restaurant == null)
+            {
+                return NotFound("Restaurant not found.");
+            }
+
+            if (restaurant.OwnerId != userId)
+            {
+                return Forbid();
+            }
+
+            _unitWork.Tablerepo.Delete(id);
+            _unitWork.Save();
 
             return NoContent();
         }

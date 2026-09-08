@@ -11,7 +11,9 @@ public class Category
     [MaxLength(100)]
     public string Name { get; set; } = string.Empty;
 
+    public int RestaurantId { get; set; }
 
+    public Restaurant Restaurant { get; set; } = null!;
 
     public ICollection<MenuItem> MenuItems { get; set; }
         = new List<MenuItem>();

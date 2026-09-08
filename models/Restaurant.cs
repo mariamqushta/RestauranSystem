@@ -27,10 +27,18 @@ public class Restaurant
 
     public TimeOnly ClosingTime { get; set; }
 
+    // Restaurant Owner
+
+    public string? OwnerId { get; set; }
+
+    public ApplicationUser? Owner { get; set; }
+
 
     // Relationships
 
     public ICollection<RestaurantTable> Tables { get; set; } = new List<RestaurantTable>();
+    public ICollection<Category> Categories { get; set; }
+    = new List<Category>();
 
     public ICollection<MenuItem> MenuItems { get; set; } = new List<MenuItem>();
 
